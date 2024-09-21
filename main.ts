@@ -1,134 +1,200 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { Platform, App, MarkdownFileInfo, Hotkey, Plugin, PluginSettingTab, Setting } from 'obsidian';
 
-// Remember to rename these classes and interfaces!
+const PluginId = 'editor-scroll-commands';
+const ScrollUpCommandId = 'scroll-up';
+const ScrollDownCommandId = 'scroll-down';
 
-interface MyPluginSettings {
-	mySetting: string;
+interface EditorScrollCommandsSettings {
+  offset: number;
+  interval: number;
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
+const DEFAULT_SETTINGS: EditorScrollCommandsSettings = {
+  offset: 11,
+  interval: 8,
 }
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+const ModToEventProp = {
+  'Alt': 'altKey',
+  'Shift': 'shiftKey',
+  'Ctrl': 'ctrlKey',
+  'Meta': 'metaKey',
+  'Mod': Platform.isMacOS ? 'metaKey' : 'ctrlKey',
+};
 
-	async onload() {
-		await this.loadSettings();
+export default class EditorScrollCommandsPlugin extends Plugin {
+  settings: EditorScrollCommandsSettings;
+  intervalId: number;
+  editorScrolling: MarkdownFileInfo | null;
 
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
+  clearInterval() {
+    window.clearInterval(this.intervalId);
+    this.intervalId = 0;
+    this.editorScrolling = null;
+  }
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
+  scroll(offset: number) {
+    let editor = this.app.workspace.activeEditor?.editor;
+    if (!editor) { return; }
 
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
+    if (!this.intervalId) {
+      this.editorScrolling = this.app.workspace.activeEditor;
+      this.intervalId = window.setInterval(() => {
+        if (this.app.workspace.activeEditor != this.editorScrolling) {
+          this.clearInterval();
+          return;
+        }
+        // @ts-expect-error
+        editor?.cm.scrollDOM.scrollBy(0, offset);
+      }, this.settings.interval);
+      this.registerInterval(this.intervalId);
+    }
+  }
 
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-			}
-		});
+  scrollUp() {
+    this.scroll(-this.settings.offset);
+  }
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+  scrollDown() {
+    this.scroll(this.settings.offset);
+  }
 
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
+  isScrollHotkeyEvent(event: KeyboardEvent, hotkeys: Hotkey[]) {
+    return hotkeys.some((hotkey: Hotkey) => {
+      let keyMatched = (hotkey.key.toUpperCase() == event.key.toUpperCase()
+        ? true : false);
 
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-	}
+      let allModsMatched = hotkey.modifiers.every(m => {
+        let propName = ModToEventProp[m];
 
-	onunload() {
+        // @ts-expect-error
+        if (!event[propName]) { return false; }
 
-	}
+        return true;
+      });
 
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-	}
+      return keyMatched && allModsMatched;
+    });
+  }
 
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
+  isScrollUpHotkeyEvent(event: KeyboardEvent) {
+    // @ts-expect-error
+    let scrollUpHotkeys = this.app.hotkeyManager.customKeys[`${PluginId}:${ScrollUpCommandId}`];
+
+    if (!scrollUpHotkeys) { return false; }
+
+    return this.isScrollHotkeyEvent(event, scrollUpHotkeys);
+  }
+
+  isScrollDownHotkeyEvent(event: KeyboardEvent) {
+    // @ts-expect-error
+    let scrollDownHotkeys = this.app.hotkeyManager.customKeys[`${PluginId}:${ScrollDownCommandId}`];
+
+    if (!scrollDownHotkeys) { return false; }
+
+    return this.isScrollHotkeyEvent(event, scrollDownHotkeys);
+  }
+
+  async onload() {
+    await this.loadSettings();
+
+    this.addCommand({
+      id: ScrollUpCommandId,
+      name: 'Scroll up',
+      editorCallback: () => {},
+    });
+
+    this.addCommand({
+      id: ScrollDownCommandId,
+      name: 'Scroll down',
+      editorCallback: () => {},
+    });
+
+    this.registerDomEvent(window, 'keydown', (ev: KeyboardEvent) => {
+      let scrollUpHotkeyPressed = this.isScrollUpHotkeyEvent(ev);
+      let scrollDownHotkeyPressed = this.isScrollDownHotkeyEvent(ev);
+
+      if (scrollUpHotkeyPressed) {
+        ev.preventDefault();
+        this.scrollUp();
+      }
+
+      if (scrollDownHotkeyPressed) {
+        ev.preventDefault();
+        this.scrollDown();
+      }
+    }, true);
+
+    this.registerDomEvent(window, 'keyup', (ev: KeyboardEvent) => {
+      let scrollUpHotkeyReleased = this.isScrollUpHotkeyEvent(ev);
+      let scrollDownHotkeyReleased = this.isScrollDownHotkeyEvent(ev);
+
+      if (scrollUpHotkeyReleased) {
+        ev.preventDefault();
+        this.clearInterval();
+      }
+
+      if (scrollDownHotkeyReleased) {
+        ev.preventDefault();
+        this.clearInterval();
+      }
+    }, true);
+
+    this.addSettingTab(new EditorScrollCommandsSettingTab(this.app, this));
+  }
+
+  onunload() {
+
+  }
+
+  async loadSettings() {
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+  }
+
+  async saveSettings() {
+    await this.saveData(this.settings);
+  }
 }
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
+class EditorScrollCommandsSettingTab extends PluginSettingTab {
+  plugin: EditorScrollCommandsPlugin;
 
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
+  constructor(app: App, plugin: EditorScrollCommandsPlugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
 
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
-	}
-}
+  display(): void {
+    const {containerEl} = this;
 
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+    containerEl.empty();
 
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
+    new Setting(containerEl)
+    .setHeading()
+    .setName('Editor Scroll Commands');
 
-	display(): void {
-		const {containerEl} = this;
+    new Setting(containerEl)
+    .setName('Scroll offset')
+    .setDesc('The number of pixels to scroll per interval, px')
+    .addText(text => text
+             .setPlaceholder('Enter the scroll offset number')
+             .setValue(this.plugin.settings.offset?.toString())
+             .onChange(async (value) => {
+               this.plugin.settings.offset = value ?
+                 parseInt(value, 10) : DEFAULT_SETTINGS.offset;
+               await this.plugin.saveSettings();
+             }));
 
-		containerEl.empty();
-
-		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
-	}
+    new Setting(containerEl)
+    .setName('Scroll interval')
+    .setDesc('The scroll offset interval in milliseconds, ms')
+    .addText(text => text
+             .setPlaceholder('Enter the interval amount')
+             .setValue(this.plugin.settings.interval?.toString())
+             .onChange(async (value) => {
+               this.plugin.settings.interval = value ?
+                 parseInt(value, 10) : DEFAULT_SETTINGS.interval;
+               await this.plugin.saveSettings();
+             }));
+  }
 }
