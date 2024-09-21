@@ -26,4 +26,4 @@ The settings allow you to change the scroll offset and the interval.
 
 - Copy over `main.js`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/obsidian-editor-scroll-commands/`.
 
-See ![latest release](https://github.com/PhoSor/obsidian-editor-scroll-commands/releases/latest) in **Releases** section.
+See [latest release](releases/latest) in **Releases** section.
