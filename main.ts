@@ -61,8 +61,9 @@ export default class EditorScrollCommandsPlugin extends Plugin {
 
   isScrollHotkeyEvent(event: KeyboardEvent, hotkeys: Hotkey[]) {
     return hotkeys.some((hotkey: Hotkey) => {
-      let keyMatched = (hotkey.key.toUpperCase() == event.key.toUpperCase()
-        ? true : false);
+      let keyMatched =
+        (hotkey.key == event.code) ||
+        ('Key' + hotkey.key == event.code);
 
       let allModsMatched = hotkey.modifiers.every(m => {
         let propName = ModToEventProp[m];

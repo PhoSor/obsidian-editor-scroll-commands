@@ -1,19 +1,21 @@
 # Obsidian Scroll Editor Plugin
 
-This plugin adds scroll commands for Obsidian editor.
+This plugin adds scroll commands for the Obsidian editor.
 
-The plugin adds `scroll-up` and `scroll-down` commands to the editor. Assign hotkeys to this commands to
+The plugin adds `scroll-up` and `scroll-down` commands to the editor. Assign hotkeys to these commands to
 scroll the editor view.
 
 ![Editor Scroll Commands](media/editor-scroll-commands.png "Editor Scroll Commands")
 
 The commands itself do nothing, so use the hotkeys to scroll the editor.
 
+![Editor Scroll Commands Hotkeys](media/editor-scroll-commands-hotkeys.png "Editor Scroll Commands Hotkeys")
+
 The settings allow you to change the scroll offset and the interval.
 
 ![Editor Scroll Commands Settings](media/editor-scroll-commands-settings.png "Editor Scroll Commands Settings")
 
-## How to use
+## Development
 
 - Clone this repo.
 - Make sure your NodeJS is at least v16 (`node --version`).
@@ -22,5 +24,6 @@ The settings allow you to change the scroll offset and the interval.
 
 ## Manually installing the plugin
 
-- Copy over `main.js`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+- Copy over `main.js`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/obsidian-editor-scroll-commands/`.
 
+See ![latest release](https://github.com/PhoSor/obsidian-editor-scroll-commands/releases/latest) in **Releases** section.
