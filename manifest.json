@@ -1,7 +1,7 @@
 {
   "id": "editor-scroll-commands",
   "name": "Editor Scroll Commands",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "minAppVersion": "0.15.0",
   "description": "Add scroll commands for editor, so you can assign hotkeys.",
   "author": "Andrey Sorokin <pho.nzp@gmail.com>",

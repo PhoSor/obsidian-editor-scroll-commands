@@ -1,20 +1,26 @@
 import { Platform, App, MarkdownFileInfo, Hotkey, Plugin, PluginSettingTab, Setting } from 'obsidian';
 
-const PluginId = 'editor-scroll-commands';
-const ScrollUpCommandId = 'scroll-up';
-const ScrollDownCommandId = 'scroll-down';
+const PLUGIN_ID = 'editor-scroll-commands';
+const SCROLL_UP_COMMAND_ID = 'scroll-up';
+const SCROLL_DOWN_COMMAND_ID = 'scroll-down';
 
 interface EditorScrollCommandsSettings {
   offset: number;
   interval: number;
+  accelerate: boolean;
+  accelRate: number;
+  maxAccel: number;
 }
 
 const DEFAULT_SETTINGS: EditorScrollCommandsSettings = {
-  offset: 11,
-  interval: 8,
+  offset: 2,
+  interval: 5,
+  accelerate: true,
+  accelRate: 0.024,
+  maxAccel: 4,
 }
 
-const ModToEventProp = {
+const MODIFIER_TO_EVENT_PROP = {
   'Alt': 'altKey',
   'Shift': 'shiftKey',
   'Ctrl': 'ctrlKey',
@@ -26,11 +32,13 @@ export default class EditorScrollCommandsPlugin extends Plugin {
   settings: EditorScrollCommandsSettings;
   intervalId: number;
   editorScrolling: MarkdownFileInfo | null;
+  scrollCoef = 1;
 
   clearInterval() {
     window.clearInterval(this.intervalId);
     this.intervalId = 0;
     this.editorScrolling = null;
+    this.scrollCoef = 1;
   }
 
   scroll(offset: number) {
@@ -40,12 +48,12 @@ export default class EditorScrollCommandsPlugin extends Plugin {
     if (!this.intervalId) {
       this.editorScrolling = this.app.workspace.activeEditor;
       this.intervalId = window.setInterval(() => {
-        if (this.app.workspace.activeEditor != this.editorScrolling) {
-          this.clearInterval();
-          return;
+        if (this.settings.accelerate) {
+          this.scrollCoef += ((this.scrollCoef < this.settings.maxAccel) ?
+                              this.settings.accelRate : 0);
         }
         // @ts-expect-error
-        editor?.cm.scrollDOM.scrollBy(0, offset);
+        editor?.cm.scrollDOM.scrollBy(0, offset * this.scrollCoef);
       }, this.settings.interval);
       this.registerInterval(this.intervalId);
     }
@@ -60,18 +68,16 @@ export default class EditorScrollCommandsPlugin extends Plugin {
   }
 
   isScrollHotkeyEvent(event: KeyboardEvent, hotkeys: Hotkey[]) {
-    return hotkeys.some((hotkey: Hotkey) => {
+    return hotkeys?.some((hotkey: Hotkey) => {
       let keyMatched =
         (hotkey.key == event.code) ||
         ('Key' + hotkey.key == event.code);
 
       let allModsMatched = hotkey.modifiers.every(m => {
-        let propName = ModToEventProp[m];
+        let modifierPressed = MODIFIER_TO_EVENT_PROP[m];
 
         // @ts-expect-error
-        if (!event[propName]) { return false; }
-
-        return true;
+        return event[modifierPressed];
       });
 
       return keyMatched && allModsMatched;
@@ -80,18 +86,14 @@ export default class EditorScrollCommandsPlugin extends Plugin {
 
   isScrollUpHotkeyEvent(event: KeyboardEvent) {
     // @ts-expect-error
-    let scrollUpHotkeys = this.app.hotkeyManager.customKeys[`${PluginId}:${ScrollUpCommandId}`];
-
-    if (!scrollUpHotkeys) { return false; }
+    let scrollUpHotkeys = this.app.hotkeyManager.customKeys[`${PLUGIN_ID}:${SCROLL_UP_COMMAND_ID}`];
 
     return this.isScrollHotkeyEvent(event, scrollUpHotkeys);
   }
 
   isScrollDownHotkeyEvent(event: KeyboardEvent) {
     // @ts-expect-error
-    let scrollDownHotkeys = this.app.hotkeyManager.customKeys[`${PluginId}:${ScrollDownCommandId}`];
-
-    if (!scrollDownHotkeys) { return false; }
+    let scrollDownHotkeys = this.app.hotkeyManager.customKeys[`${PLUGIN_ID}:${SCROLL_DOWN_COMMAND_ID}`];
 
     return this.isScrollHotkeyEvent(event, scrollDownHotkeys);
   }
@@ -100,13 +102,13 @@ export default class EditorScrollCommandsPlugin extends Plugin {
     await this.loadSettings();
 
     this.addCommand({
-      id: ScrollUpCommandId,
+      id: SCROLL_UP_COMMAND_ID,
       name: 'Scroll up',
       editorCallback: () => {},
     });
 
     this.addCommand({
-      id: ScrollDownCommandId,
+      id: SCROLL_DOWN_COMMAND_ID,
       name: 'Scroll down',
       editorCallback: () => {},
     });
@@ -170,32 +172,72 @@ class EditorScrollCommandsSettingTab extends PluginSettingTab {
 
     containerEl.empty();
 
-    new Setting(containerEl)
-    .setHeading()
-    .setName('Editor Scroll Commands');
+    new Setting(containerEl).
+      setName('Scroll offset').
+      setDesc('The number of pixels to scroll per interval, px').
+      addText(text => text.
+        setPlaceholder('Enter the scroll offset number').
+        setValue(this.plugin.settings.offset?.toString()).
+        onChange(async (value) => {
+          this.plugin.settings.offset =
+            parseInt(value, 10) || DEFAULT_SETTINGS.offset;
+          await this.plugin.saveSettings();
+        })
+      );
 
-    new Setting(containerEl)
-    .setName('Scroll offset')
-    .setDesc('The number of pixels to scroll per interval, px')
-    .addText(text => text
-             .setPlaceholder('Enter the scroll offset number')
-             .setValue(this.plugin.settings.offset?.toString())
-             .onChange(async (value) => {
-               this.plugin.settings.offset = value ?
-                 parseInt(value, 10) : DEFAULT_SETTINGS.offset;
-               await this.plugin.saveSettings();
-             }));
+    new Setting(containerEl).
+      setName('Scroll interval').
+      setDesc('The scroll offset interval in milliseconds, ms').
+      addText(text => text.
+        setPlaceholder('Enter the interval amount').
+        setValue(this.plugin.settings.interval?.toString()).
+        onChange(async (value) => {
+          this.plugin.settings.interval =
+            parseInt(value, 10) || DEFAULT_SETTINGS.interval;
+          await this.plugin.saveSettings();
+        })
+      );
 
-    new Setting(containerEl)
-    .setName('Scroll interval')
-    .setDesc('The scroll offset interval in milliseconds, ms')
-    .addText(text => text
-             .setPlaceholder('Enter the interval amount')
-             .setValue(this.plugin.settings.interval?.toString())
-             .onChange(async (value) => {
-               this.plugin.settings.interval = value ?
-                 parseInt(value, 10) : DEFAULT_SETTINGS.interval;
-               await this.plugin.saveSettings();
-             }));
+    new Setting(containerEl).
+      setHeading().
+      setName('Scroll acceleration');
+
+    new Setting(containerEl).
+      setName('Enable scroll acceleration').
+      addToggle(text => text.
+        setValue(this.plugin.settings.accelerate).
+        onChange(async (value) => {
+        this.plugin.settings.accelerate = value;
+        await this.plugin.saveSettings();
+        if (increaseRate && maxRate) {
+          increaseRate.setDisabled(!value);
+          maxRate.setDisabled(!value);
+        }
+      })
+    );
+
+    let increaseRate = new Setting(containerEl).
+      setName('Scroll rate increase').
+      setDesc('The step of the increase of the scroll acceleration').
+      addText(text => text.
+        setValue(this.plugin.settings.accelRate.toString()).
+        onChange(async (value) => {
+          this.plugin.settings.accelRate =
+            parseFloat(value) || DEFAULT_SETTINGS.accelRate;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    let maxRate = new Setting(containerEl).
+      setName('Max scroll rate').
+      setDesc('Max rate of the scroll acceleration').
+      addText(text => text.
+      setValue(this.plugin.settings.maxAccel.toString()).
+      onChange(async (value) => {
+        this.plugin.settings.maxAccel =
+          parseFloat(value) || DEFAULT_SETTINGS.maxAccel;
+        await this.plugin.saveSettings();
+      })
+    );
   }
 }
