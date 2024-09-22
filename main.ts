@@ -13,20 +13,12 @@ interface EditorScrollCommandsSettings {
 }
 
 const DEFAULT_SETTINGS: EditorScrollCommandsSettings = {
-  offset: 2,
-  interval: 5,
+  offset: 4,
+  interval: 6,
   accelerate: true,
-  accelRate: 0.024,
-  maxAccel: 4,
+  accelRate: 0.02,
+  maxAccel: 8,
 }
-
-const MODIFIER_TO_EVENT_PROP = {
-  'Alt': 'altKey',
-  'Shift': 'shiftKey',
-  'Ctrl': 'ctrlKey',
-  'Meta': 'metaKey',
-  'Mod': Platform.isMacOS ? 'metaKey' : 'ctrlKey',
-};
 
 export default class EditorScrollCommandsPlugin extends Plugin {
   settings: EditorScrollCommandsSettings;
@@ -76,14 +68,18 @@ export default class EditorScrollCommandsPlugin extends Plugin {
         (hotkey.key == event.code) ||
         ('Key' + hotkey.key == event.code);
 
-      let allModsMatched = hotkey.modifiers.every(m => {
-        let modifierPressed = MODIFIER_TO_EVENT_PROP[m];
+      if (!keyMatched) { return false; }
 
-        // @ts-expect-error
-        return event[modifierPressed];
-      });
+      let mods = hotkey.modifiers;
+      let modKeyState = Platform.isMacOS ? event.metaKey : event.ctrlKey;
 
-      return keyMatched && allModsMatched;
+      if (event.altKey != mods.contains('Alt')) { return false; }
+      if (event.ctrlKey != mods.contains('Ctrl')) { return false; }
+      if (event.shiftKey != mods.contains('Shift')) { return false; }
+      if (event.metaKey != mods.contains('Meta')) { return false; }
+      if (modKeyState != mods.contains('Mod')) { return false; }
+
+      return true;
     });
   }
 

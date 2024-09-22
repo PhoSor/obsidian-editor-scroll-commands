@@ -1,6 +1,6 @@
 {
   "name": "editor-scroll-commands",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Add scroll commands for editor, so you can assign hotkeys.",
   "main": "main.js",
   "scripts": {
