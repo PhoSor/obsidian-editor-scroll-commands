@@ -64,20 +64,21 @@ export default class EditorScrollCommandsPlugin extends Plugin {
 
   isScrollHotkeyEvent(event: KeyboardEvent, hotkeys: Hotkey[]) {
     return hotkeys?.some((hotkey: Hotkey) => {
-      let keyMatched =
-        (hotkey.key == event.code) ||
-        ('Key' + hotkey.key == event.code);
-
-      if (!keyMatched) { return false; }
+      if ((hotkey.key != event.code) &&
+        ('Key' + hotkey.key != event.code)) { return false; }
 
       let mods = hotkey.modifiers;
-      let modKeyState = Platform.isMacOS ? event.metaKey : event.ctrlKey;
 
       if (event.altKey != mods.contains('Alt')) { return false; }
-      if (event.ctrlKey != mods.contains('Ctrl')) { return false; }
       if (event.shiftKey != mods.contains('Shift')) { return false; }
-      if (event.metaKey != mods.contains('Meta')) { return false; }
-      if (modKeyState != mods.contains('Mod')) { return false; }
+
+      if (Platform.isMacOS) {
+        if (event.metaKey != (mods.contains('Mod') || mods.contains('Meta')))
+          { return false; }
+      } else {
+        if (event.ctrlKey != (mods.contains('Mod') || mods.contains('Ctrl')))
+          { return false; }
+      }
 
       return true;
     });
