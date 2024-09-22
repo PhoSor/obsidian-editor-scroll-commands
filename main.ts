@@ -43,7 +43,10 @@ export default class EditorScrollCommandsPlugin extends Plugin {
 
   scroll(offset: number) {
     let editor = this.app.workspace.activeEditor?.editor;
-    if (!editor) { return; }
+    if (!editor ||
+        // @ts-expect-error
+        !editor.activeCM.dom.hasClass('cm-focused')
+       ) { return; }
 
     if (!this.intervalId) {
       this.editorScrolling = this.app.workspace.activeEditor;
